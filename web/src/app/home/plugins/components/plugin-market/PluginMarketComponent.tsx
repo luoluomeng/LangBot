@@ -10,10 +10,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Search, Loader2 } from 'lucide-react';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import {
+  Search,
+  Loader2,
+  Wrench,
+  AudioWaveform,
+  Hash,
+  Book,
+} from 'lucide-react';
 import PluginMarketCardComponent from './plugin-market-card/PluginMarketCardComponent';
 import { PluginMarketCardVO } from './plugin-market-card/PluginMarketCardVO';
-import PluginDetailDialog from './plugin-detail-dialog/PluginDetailDialog';
 import { getCloudServiceClientSync } from '@/app/infra/http';
 import { useTranslation } from 'react-i18next';
 import { PluginV4 } from '@/app/infra/entities/plugin';
@@ -38,6 +45,7 @@ function MarketPageContent({
   const searchParams = useSearchParams();
 
   const [searchQuery, setSearchQuery] = useState('');
+  const [componentFilter, setComponentFilter] = useState<string>('all');
   const [plugins, setPlugins] = useState<PluginMarketCardVO[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
@@ -45,15 +53,6 @@ function MarketPageContent({
   const [currentPage, setCurrentPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [sortOption, setSortOption] = useState('install_count_desc');
-
-  // Plugin detail dialog state
-  const [selectedPluginAuthor, setSelectedPluginAuthor] = useState<
-    string | null
-  >(null);
-  const [selectedPluginName, setSelectedPluginName] = useState<string | null>(
-    null,
-  );
-  const [dialogOpen, setDialogOpen] = useState(false);
 
   const pageSize = 16; // 每页16个，4行x4列
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -111,6 +110,7 @@ function MarketPageContent({
       ),
       githubURL: plugin.repository,
       version: plugin.latest_version,
+      components: plugin.components,
     });
   }, []);
 
@@ -124,25 +124,20 @@ function MarketPageContent({
       }
 
       try {
-        let response;
         const { sortBy, sortOrder } = getCurrentSort();
+        const filterValue =
+          componentFilter === 'all' ? undefined : componentFilter;
 
-        if (isSearch && searchQuery.trim()) {
-          response = await getCloudServiceClientSync().searchMarketplacePlugins(
-            searchQuery.trim(),
+        // Always use searchMarketplacePlugins to support component filtering
+        const response =
+          await getCloudServiceClientSync().searchMarketplacePlugins(
+            isSearch && searchQuery.trim() ? searchQuery.trim() : '',
             page,
             pageSize,
             sortBy,
             sortOrder,
+            filterValue,
           );
-        } else {
-          response = await getCloudServiceClientSync().getMarketplacePlugins(
-            page,
-            pageSize,
-            sortBy,
-            sortOrder,
-          );
-        }
 
         const data: ApiRespMarketplacePlugins = response;
         const newPlugins = data.plugins.map(transformToVO);
@@ -167,7 +162,14 @@ function MarketPageContent({
         setIsLoadingMore(false);
       }
     },
-    [searchQuery, pageSize, transformToVO, plugins.length, getCurrentSort],
+    [
+      searchQuery,
+      componentFilter,
+      pageSize,
+      transformToVO,
+      plugins.length,
+      getCurrentSort,
+    ],
   );
 
   // 初始加载
@@ -212,38 +214,59 @@ function MarketPageContent({
     // fetchPlugins will be called by useEffect when sortOption changes
   }, []);
 
-  // 当排序选项变化时重新加载数据
+  // 组件筛选变化处理
+  const handleComponentFilterChange = useCallback((value: string) => {
+    setComponentFilter(value);
+    setCurrentPage(1);
+    setPlugins([]);
+    // fetchPlugins will be called by useEffect when componentFilter changes
+  }, []);
+
+  // 当排序选项或组件筛选变化时重新加载数据
   useEffect(() => {
     fetchPlugins(1, !!searchQuery.trim(), true);
-  }, [sortOption]);
+  }, [sortOption, componentFilter]);
 
-  // 处理URL参数，检查是否需要打开插件详情对话框
+  // 处理URL参数，重定向到 LangBot Space
   useEffect(() => {
     const author = searchParams.get('author');
     const pluginName = searchParams.get('plugin');
 
     if (author && pluginName) {
-      setSelectedPluginAuthor(author);
-      setSelectedPluginName(pluginName);
-      setDialogOpen(true);
+      const detailUrl = `https://space.langbot.app/market/${author}/${pluginName}`;
+      window.open(detailUrl, '_blank');
     }
   }, [searchParams]);
 
-  // 插件详情对话框处理函数
-  const handlePluginClick = useCallback(
-    (author: string, pluginName: string) => {
-      setSelectedPluginAuthor(author);
-      setSelectedPluginName(pluginName);
-      setDialogOpen(true);
-    },
-    [],
-  );
+  // 处理安装插件
+  const handleInstallPlugin = useCallback(
+    async (author: string, pluginName: string) => {
+      try {
+        // Find the full plugin object from the list
+        const pluginVO = plugins.find(
+          (p) => p.author === author && p.pluginName === pluginName,
+        );
+        if (!pluginVO) {
+          console.error('Plugin not found:', author, pluginName);
+          return;
+        }
 
-  const handleDialogClose = useCallback(() => {
-    setDialogOpen(false);
-    setSelectedPluginAuthor(null);
-    setSelectedPluginName(null);
-  }, []);
+        // Fetch full plugin details to get PluginV4 object
+        const response = await getCloudServiceClientSync().getPluginDetail(
+          author,
+          pluginName,
+        );
+        const pluginV4: PluginV4 = response.plugin;
+
+        // Call the install function passed from parent
+        installPlugin(pluginV4);
+      } catch (error) {
+        console.error('Failed to install plugin:', error);
+        toast.error(t('market.installFailed'));
+      }
+    },
+    [plugins, installPlugin, t],
+  );
 
   // 清理定时器
   useEffect(() => {
@@ -263,6 +286,18 @@ function MarketPageContent({
     }
   }, [currentPage, isLoadingMore, hasMore, fetchPlugins, searchQuery]);
 
+  // Check if content fills the viewport and load more if needed
+  const checkAndLoadMore = useCallback(() => {
+    const scrollContainer = scrollContainerRef.current;
+    if (!scrollContainer || isLoading || isLoadingMore || !hasMore) return;
+
+    const { scrollHeight, clientHeight } = scrollContainer;
+    // If content doesn't fill the viewport (no scrollbar), load more
+    if (scrollHeight <= clientHeight) {
+      loadMore();
+    }
+  }, [loadMore, isLoading, isLoadingMore, hasMore]);
+
   // Listen to scroll events on the scroll container
   useEffect(() => {
     const scrollContainer = scrollContainerRef.current;
@@ -280,9 +315,27 @@ function MarketPageContent({
     return () => scrollContainer.removeEventListener('scroll', handleScroll);
   }, [loadMore]);
 
+  // Check if we need to load more after content changes or initial load
+  useEffect(() => {
+    // Small delay to ensure DOM has updated
+    const timer = setTimeout(() => {
+      checkAndLoadMore();
+    }, 100);
+    return () => clearTimeout(timer);
+  }, [plugins, checkAndLoadMore]);
+
+  // Also check on window resize
+  useEffect(() => {
+    const handleResize = () => {
+      checkAndLoadMore();
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [checkAndLoadMore]);
+
   // 安装插件
   // const handleInstallPlugin = (plugin: PluginV4) => {
-  //   console.log('install plugin', plugin);
   // };
 
   return (
@@ -311,9 +364,67 @@ function MarketPageContent({
           </div>
         </div>
 
-        {/* Sort dropdown */}
-        <div className="flex items-center justify-center">
-          <div className="w-full max-w-2xl flex items-center gap-2 sm:gap-3">
+        {/* Component filter and sort */}
+        <div className="flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4 px-3 sm:px-4">
+          {/* Component filter */}
+          <div className="flex flex-col sm:flex-row items-center gap-2">
+            <span className="text-xs sm:text-sm text-muted-foreground whitespace-nowrap">
+              {t('market.filterByComponent')}:
+            </span>
+            <ToggleGroup
+              type="single"
+              spacing={2}
+              size="sm"
+              value={componentFilter}
+              onValueChange={(value) => {
+                if (value) handleComponentFilterChange(value);
+              }}
+              className="justify-start"
+            >
+              <ToggleGroupItem
+                value="all"
+                aria-label="All components"
+                className="text-xs sm:text-sm cursor-pointer"
+              >
+                {t('market.allComponents')}
+              </ToggleGroupItem>
+              <ToggleGroupItem
+                value="Tool"
+                aria-label="Tool"
+                className="text-xs sm:text-sm cursor-pointer"
+              >
+                <Wrench className="h-4 w-4 mr-1" />
+                {t('plugins.componentName.Tool')}
+              </ToggleGroupItem>
+              <ToggleGroupItem
+                value="Command"
+                aria-label="Command"
+                className="text-xs sm:text-sm cursor-pointer"
+              >
+                <Hash className="h-4 w-4 mr-1" />
+                {t('plugins.componentName.Command')}
+              </ToggleGroupItem>
+              <ToggleGroupItem
+                value="EventListener"
+                aria-label="EventListener"
+                className="text-xs sm:text-sm cursor-pointer"
+              >
+                <AudioWaveform className="h-4 w-4 mr-1" />
+                {t('plugins.componentName.EventListener')}
+              </ToggleGroupItem>
+              <ToggleGroupItem
+                value="KnowledgeRetriever"
+                aria-label="KnowledgeRetriever"
+                className="text-xs sm:text-sm cursor-pointer"
+              >
+                <Book className="h-4 w-4 mr-1" />
+                {t('plugins.componentName.KnowledgeRetriever')}
+              </ToggleGroupItem>
+            </ToggleGroup>
+          </div>
+
+          {/* Sort dropdown */}
+          <div className="flex items-center gap-2 sm:gap-3">
             <span className="text-xs sm:text-sm text-muted-foreground whitespace-nowrap">
               {t('market.sortBy')}:
             </span>
@@ -360,12 +471,12 @@ function MarketPageContent({
           </div>
         ) : (
           <>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-6 pb-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-6 pb-6 pt-4">
               {plugins.map((plugin) => (
                 <PluginMarketCardComponent
                   key={plugin.pluginId}
                   cardVO={plugin}
-                  onPluginClick={handlePluginClick}
+                  onInstall={handleInstallPlugin}
                 />
               ))}
             </div>
@@ -382,20 +493,20 @@ function MarketPageContent({
             {!hasMore && plugins.length > 0 && (
               <div className="text-center text-muted-foreground py-6">
                 {t('market.allLoaded')}
+                {' · '}
+                <a
+                  href="https://github.com/langbot-app/langbot-plugin-demo/issues/new?template=plugin-request.yml"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary hover:underline"
+                >
+                  {t('market.requestPlugin')}
+                </a>
               </div>
             )}
           </>
         )}
       </div>
-
-      {/* Plugin detail dialog */}
-      <PluginDetailDialog
-        open={dialogOpen}
-        onOpenChange={handleDialogClose}
-        author={selectedPluginAuthor}
-        pluginName={selectedPluginName}
-        installPlugin={installPlugin}
-      />
     </div>
   );
 }

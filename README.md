@@ -8,7 +8,7 @@
 
 <a href="https://hellogithub.com/repository/langbot-app/LangBot" target="_blank"><img src="https://abroad.hellogithub.com/v1/widgets/recommend.svg?rid=5ce8ae2aa4f74316bf393b57b952433c&claim_uid=gtmc6YWjMZkT21R" alt="Featured｜HelloGitHub" style="width: 250px; height: 54px;" width="250" height="54" /></a>
 
-[English](README_EN.md) / 简体中文 / [繁體中文](README_TW.md) / [日本語](README_JP.md) / (PR for your language)
+[English](README_EN.md) / 简体中文 / [繁體中文](README_TW.md) / [日本語](README_JP.md) / [Español](README_ES.md) / [Français](README_FR.md) / [한국어](README_KO.md) / [Русский](README_RU.md) / [Tiếng Việt](README_VI.md)
 
 [![Discord](https://img.shields.io/discord/1335141740050649118?logo=discord&labelColor=%20%235462eb&logoColor=%20%23f5f5f5&color=%20%235462eb)](https://discord.gg/wdNEHETs87)
 [![QQ Group](https://img.shields.io/badge/%E7%A4%BE%E5%8C%BAQQ%E7%BE%A4-966235608-blue)](https://qm.qq.com/q/JLi38whHum)
@@ -83,10 +83,10 @@ docker compose up -d
 
 ## ✨ 特性
 
-- 💬 大模型对话、Agent：支持多种大模型，适配群聊和私聊；具有多轮对话、工具调用、多模态、流式输出能力，自带 RAG（知识库）实现，并深度适配 [Dify](https://dify.ai)。
+- 💬 大模型对话、Agent：支持多种大模型，适配群聊和私聊；具有多轮对话、工具调用、多模态、流式输出能力，自带 RAG（知识库）实现，并深度适配 [Dify](https://dify.ai)、[Coze](https://coze.com)、[n8n](https://n8n.io)等 LLMOps 平台。
 - 🤖 多平台支持：目前支持 QQ、QQ频道、企业微信、个人微信、飞书、Discord、Telegram 等平台。
 - 🛠️ 高稳定性、功能完备：原生支持访问控制、限速、敏感词过滤等机制；配置简单，支持多种部署方式。支持多流水线配置，不同机器人用于不同应用场景。
-- 🧩 插件扩展、活跃社区：支持事件驱动、组件扩展等插件机制；适配 Anthropic [MCP 协议](https://modelcontextprotocol.io/)；目前已有数百个插件。
+- 🧩 插件扩展、活跃社区：高稳定性、高安全性的生产级插件系统，支持事件驱动、组件扩展等插件机制；适配 Anthropic [MCP 协议](https://modelcontextprotocol.io/)；目前已有数百个插件。
 - 😻 Web 管理面板：支持通过浏览器管理 LangBot 实例，不再需要手动编写配置文件。
 
 详细规格特性请访问[文档](https://docs.langbot.app/zh/insight/features.html)。

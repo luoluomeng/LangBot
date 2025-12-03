@@ -241,7 +241,7 @@ export default function ApiIntegrationDialog({
           onOpenChange(newOpen);
         }}
       >
-        <DialogContent className="sm:max-w-[800px]">
+        <DialogContent className="sm:max-w-[800px] h-[26rem] flex flex-col">
           <DialogHeader>
             <DialogTitle>{t('common.manageApiIntegration')}</DialogTitle>
           </DialogHeader>
@@ -249,7 +249,7 @@ export default function ApiIntegrationDialog({
           <Tabs
             value={activeTab}
             onValueChange={setActiveTab}
-            className="w-full"
+            className="w-full flex-1 flex flex-col overflow-hidden"
           >
             <TabsList className="shadow-md py-3 bg-[#f0f0f0] dark:bg-[#2a2a2e]">
               <TabsTrigger className="px-5 py-4 cursor-pointer" value="apikeys">
@@ -264,7 +264,10 @@ export default function ApiIntegrationDialog({
             </TabsList>
 
             {/* API Keys Tab */}
-            <TabsContent value="apikeys" className="space-y-4">
+            <TabsContent
+              value="apikeys"
+              className="space-y-4 flex-1 flex flex-col overflow-hidden"
+            >
               <div className="flex items-start gap-2 text-sm text-muted-foreground">
                 {t('common.apiKeyHint')}
               </div>
@@ -289,12 +292,16 @@ export default function ApiIntegrationDialog({
                   {t('common.noApiKeys')}
                 </div>
               ) : (
-                <div className="border rounded-md">
+                <div className="border rounded-md overflow-auto flex-1">
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>{t('common.name')}</TableHead>
-                        <TableHead>{t('common.apiKeyValue')}</TableHead>
+                        <TableHead className="min-w-[120px]">
+                          {t('common.name')}
+                        </TableHead>
+                        <TableHead className="min-w-[200px]">
+                          {t('common.apiKeyValue')}
+                        </TableHead>
                         <TableHead className="w-[100px]">
                           {t('common.actions')}
                         </TableHead>
@@ -347,7 +354,10 @@ export default function ApiIntegrationDialog({
             </TabsContent>
 
             {/* Webhooks Tab */}
-            <TabsContent value="webhooks" className="space-y-4">
+            <TabsContent
+              value="webhooks"
+              className="space-y-4 flex-1 flex flex-col overflow-hidden"
+            >
               <div className="flex items-start gap-2 text-sm text-muted-foreground">
                 {t('common.webhookHint')}
               </div>
@@ -372,16 +382,20 @@ export default function ApiIntegrationDialog({
                   {t('common.noWebhooks')}
                 </div>
               ) : (
-                <div className="border rounded-md">
-                  <Table>
+                <div className="border rounded-md overflow-auto flex-1 max-w-full">
+                  <Table className="table-fixed w-full">
                     <TableHeader>
                       <TableRow>
-                        <TableHead>{t('common.name')}</TableHead>
-                        <TableHead>{t('common.webhookUrl')}</TableHead>
+                        <TableHead className="w-[150px]">
+                          {t('common.name')}
+                        </TableHead>
+                        <TableHead className="w-[380px]">
+                          {t('common.webhookUrl')}
+                        </TableHead>
                         <TableHead className="w-[80px]">
                           {t('common.webhookEnabled')}
                         </TableHead>
-                        <TableHead className="w-[100px]">
+                        <TableHead className="w-[80px]">
                           {t('common.actions')}
                         </TableHead>
                       </TableRow>
@@ -389,20 +403,30 @@ export default function ApiIntegrationDialog({
                     <TableBody>
                       {webhooks.map((webhook) => (
                         <TableRow key={webhook.id}>
-                          <TableCell>
-                            <div>
-                              <div className="font-medium">{webhook.name}</div>
+                          <TableCell className="truncate">
+                            <div className="truncate">
+                              <div
+                                className="font-medium truncate"
+                                title={webhook.name}
+                              >
+                                {webhook.name}
+                              </div>
                               {webhook.description && (
-                                <div className="text-sm text-muted-foreground">
+                                <div
+                                  className="text-sm text-muted-foreground truncate"
+                                  title={webhook.description}
+                                >
                                   {webhook.description}
                                 </div>
                               )}
                             </div>
                           </TableCell>
                           <TableCell>
-                            <code className="text-sm bg-muted px-2 py-1 rounded break-all">
-                              {webhook.url}
-                            </code>
+                            <div className="overflow-x-auto max-w-[380px]">
+                              <code className="text-sm bg-muted px-2 py-1 rounded whitespace-nowrap inline-block">
+                                {webhook.url}
+                              </code>
+                            </div>
                           </TableCell>
                           <TableCell>
                             <Switch

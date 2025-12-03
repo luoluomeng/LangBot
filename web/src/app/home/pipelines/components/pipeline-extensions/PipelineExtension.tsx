@@ -16,6 +16,8 @@ import {
 import { Checkbox } from '@/components/ui/checkbox';
 import { Plus, X, Server, Wrench } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 import { Plugin } from '@/app/infra/entities/plugin';
 import { MCPServer } from '@/app/infra/entities/api';
 import PluginComponentList from '@/app/home/plugins/components/plugin-installed/PluginComponentList';
@@ -27,6 +29,8 @@ export default function PipelineExtension({
 }) {
   const { t } = useTranslation();
   const [loading, setLoading] = useState(true);
+  const [enableAllPlugins, setEnableAllPlugins] = useState(true);
+  const [enableAllMCPServers, setEnableAllMCPServers] = useState(true);
   const [selectedPlugins, setSelectedPlugins] = useState<Plugin[]>([]);
   const [allPlugins, setAllPlugins] = useState<Plugin[]>([]);
   const [selectedMCPServers, setSelectedMCPServers] = useState<MCPServer[]>([]);
@@ -52,6 +56,9 @@ export default function PipelineExtension({
     try {
       setLoading(true);
       const data = await backendClient.getPipelineExtensions(pipelineId);
+
+      setEnableAllPlugins(data.enable_all_plugins ?? true);
+      setEnableAllMCPServers(data.enable_all_mcp_servers ?? true);
 
       const boundPluginIds = new Set(
         data.bound_plugins.map((p) => `${p.author}/${p.name}`),
@@ -80,7 +87,12 @@ export default function PipelineExtension({
     }
   };
 
-  const saveToBackend = async (plugins: Plugin[], mcpServers: MCPServer[]) => {
+  const saveToBackend = async (
+    plugins: Plugin[],
+    mcpServers: MCPServer[],
+    newEnableAllPlugins?: boolean,
+    newEnableAllMCPServers?: boolean,
+  ) => {
     try {
       const boundPluginsArray = plugins.map((plugin) => {
         const metadata = plugin.manifest.manifest.metadata;
@@ -96,6 +108,8 @@ export default function PipelineExtension({
         pipelineId,
         boundPluginsArray,
         boundMCPServerIds,
+        newEnableAllPlugins ?? enableAllPlugins,
+        newEnableAllMCPServers ?? enableAllMCPServers,
       );
       toast.success(t('pipelines.extensions.saveSuccess'));
     } catch (error) {
@@ -146,6 +160,26 @@ export default function PipelineExtension({
     );
   };
 
+  const handleToggleAllPlugins = () => {
+    if (tempSelectedPluginIds.length === allPlugins.length) {
+      // Deselect all
+      setTempSelectedPluginIds([]);
+    } else {
+      // Select all
+      setTempSelectedPluginIds(allPlugins.map((p) => getPluginId(p)));
+    }
+  };
+
+  const handleToggleAllMCPServers = () => {
+    if (tempSelectedMCPIds.length === allMCPServers.length) {
+      // Deselect all
+      setTempSelectedMCPIds([]);
+    } else {
+      // Select all
+      setTempSelectedMCPIds(allMCPServers.map((s) => s.uuid || ''));
+    }
+  };
+
   const handleConfirmPluginSelection = async () => {
     const newSelected = allPlugins.filter((p) =>
       tempSelectedPluginIds.includes(getPluginId(p)),
@@ -164,6 +198,26 @@ export default function PipelineExtension({
     await saveToBackend(selectedPlugins, newSelected);
   };
 
+  const handleToggleEnableAllPlugins = async (checked: boolean) => {
+    setEnableAllPlugins(checked);
+    await saveToBackend(
+      selectedPlugins,
+      selectedMCPServers,
+      checked,
+      undefined,
+    );
+  };
+
+  const handleToggleEnableAllMCPServers = async (checked: boolean) => {
+    setEnableAllMCPServers(checked);
+    await saveToBackend(
+      selectedPlugins,
+      selectedMCPServers,
+      undefined,
+      checked,
+    );
+  };
+
   if (loading) {
     return (
       <div className="space-y-4">
@@ -178,11 +232,32 @@ export default function PipelineExtension({
     <div className="space-y-6">
       {/* Plugins Section */}
       <div className="space-y-3">
-        <h3 className="text-sm font-semibold text-foreground">
-          {t('pipelines.extensions.pluginsTitle')}
-        </h3>
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-semibold text-foreground">
+            {t('pipelines.extensions.pluginsTitle')}
+          </h3>
+          <div className="flex items-center gap-2">
+            <Label
+              htmlFor="enable-all-plugins"
+              className="text-sm font-normal cursor-pointer"
+            >
+              {t('pipelines.extensions.enableAllPlugins')}
+            </Label>
+            <Switch
+              id="enable-all-plugins"
+              checked={enableAllPlugins}
+              onCheckedChange={handleToggleEnableAllPlugins}
+            />
+          </div>
+        </div>
         <div className="space-y-2">
-          {selectedPlugins.length === 0 ? (
+          {enableAllPlugins ? (
+            <div className="flex h-32 items-center justify-center rounded-lg border-2 border-dashed border-border bg-muted/30">
+              <p className="text-sm text-muted-foreground">
+                {t('pipelines.extensions.allPluginsEnabled')}
+              </p>
+            </div>
+          ) : selectedPlugins.length === 0 ? (
             <div className="flex h-32 items-center justify-center rounded-lg border-2 border-dashed border-border">
               <p className="text-sm text-muted-foreground">
                 {t('pipelines.extensions.noPluginsSelected')}
@@ -214,7 +289,19 @@ export default function PipelineExtension({
                         </div>
                         <div className="flex gap-1 mt-1">
                           <PluginComponentList
-                            components={plugin.components}
+                            components={(() => {
+                              const componentKindCount: Record<string, number> =
+                                {};
+                              for (const component of plugin.components) {
+                                const kind = component.manifest.manifest.kind;
+                                if (componentKindCount[kind]) {
+                                  componentKindCount[kind]++;
+                                } else {
+                                  componentKindCount[kind] = 1;
+                                }
+                              }
+                              return componentKindCount;
+                            })()}
                             showComponentName={true}
                             showTitle={false}
                             useBadge={true}
@@ -246,6 +333,7 @@ export default function PipelineExtension({
           onClick={handleOpenPluginDialog}
           variant="outline"
           className="w-full"
+          disabled={enableAllPlugins}
         >
           <Plus className="mr-2 h-4 w-4" />
           {t('pipelines.extensions.addPlugin')}
@@ -254,11 +342,32 @@ export default function PipelineExtension({
 
       {/* MCP Servers Section */}
       <div className="space-y-3">
-        <h3 className="text-sm font-semibold text-foreground">
-          {t('pipelines.extensions.mcpServersTitle')}
-        </h3>
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-semibold text-foreground">
+            {t('pipelines.extensions.mcpServersTitle')}
+          </h3>
+          <div className="flex items-center gap-2">
+            <Label
+              htmlFor="enable-all-mcp-servers"
+              className="text-sm font-normal cursor-pointer"
+            >
+              {t('pipelines.extensions.enableAllMCPServers')}
+            </Label>
+            <Switch
+              id="enable-all-mcp-servers"
+              checked={enableAllMCPServers}
+              onCheckedChange={handleToggleEnableAllMCPServers}
+            />
+          </div>
+        </div>
         <div className="space-y-2">
-          {selectedMCPServers.length === 0 ? (
+          {enableAllMCPServers ? (
+            <div className="flex h-32 items-center justify-center rounded-lg border-2 border-dashed border-border bg-muted/30">
+              <p className="text-sm text-muted-foreground">
+                {t('pipelines.extensions.allMCPServersEnabled')}
+              </p>
+            </div>
+          ) : selectedMCPServers.length === 0 ? (
             <div className="flex h-32 items-center justify-center rounded-lg border-2 border-dashed border-border">
               <p className="text-sm text-muted-foreground">
                 {t('pipelines.extensions.noMCPServersSelected')}
@@ -318,6 +427,7 @@ export default function PipelineExtension({
           onClick={handleOpenMCPDialog}
           variant="outline"
           className="w-full"
+          disabled={enableAllMCPServers}
         >
           <Plus className="mr-2 h-4 w-4" />
           {t('pipelines.extensions.addMCPServer')}
@@ -330,6 +440,23 @@ export default function PipelineExtension({
           <DialogHeader>
             <DialogTitle>{t('pipelines.extensions.selectPlugins')}</DialogTitle>
           </DialogHeader>
+          {allPlugins.length > 0 && (
+            <div
+              className="flex items-center gap-3 px-1 py-2 border-b cursor-pointer"
+              onClick={handleToggleAllPlugins}
+            >
+              <Checkbox
+                checked={
+                  tempSelectedPluginIds.length === allPlugins.length &&
+                  allPlugins.length > 0
+                }
+                onCheckedChange={handleToggleAllPlugins}
+              />
+              <span className="text-sm font-medium">
+                {t('pipelines.extensions.selectAll')}
+              </span>
+            </div>
+          )}
           <div className="flex-1 overflow-y-auto space-y-2 pr-2">
             {allPlugins.length === 0 ? (
               <div className="flex h-full items-center justify-center">
@@ -364,7 +491,19 @@ export default function PipelineExtension({
                       </div>
                       <div className="flex gap-1 mt-1">
                         <PluginComponentList
-                          components={plugin.components}
+                          components={(() => {
+                            const componentKindCount: Record<string, number> =
+                              {};
+                            for (const component of plugin.components) {
+                              const kind = component.manifest.manifest.kind;
+                              if (componentKindCount[kind]) {
+                                componentKindCount[kind]++;
+                              } else {
+                                componentKindCount[kind] = 1;
+                              }
+                            }
+                            return componentKindCount;
+                          })()}
                           showComponentName={true}
                           showTitle={false}
                           useBadge={true}
@@ -404,6 +543,23 @@ export default function PipelineExtension({
               {t('pipelines.extensions.selectMCPServers')}
             </DialogTitle>
           </DialogHeader>
+          {allMCPServers.length > 0 && (
+            <div
+              className="flex items-center gap-3 px-1 py-2 border-b cursor-pointer"
+              onClick={handleToggleAllMCPServers}
+            >
+              <Checkbox
+                checked={
+                  tempSelectedMCPIds.length === allMCPServers.length &&
+                  allMCPServers.length > 0
+                }
+                onCheckedChange={handleToggleAllMCPServers}
+              />
+              <span className="text-sm font-medium">
+                {t('pipelines.extensions.selectAll')}
+              </span>
+            </div>
+          )}
           <div className="flex-1 overflow-y-auto space-y-2 pr-2">
             {allMCPServers.length === 0 ? (
               <div className="flex h-full items-center justify-center">

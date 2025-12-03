@@ -63,7 +63,6 @@ export default function PluginForm({
 
   const handleSubmit = async () => {
     setIsLoading(true);
-    const isDebugPlugin = pluginInfo?.debug;
 
     try {
       // 保存配置
@@ -122,11 +121,7 @@ export default function PluginForm({
 
       await Promise.all(deletePromises);
 
-      toast.success(
-        isDebugPlugin
-          ? t('plugins.saveConfigSuccessDebugPlugin')
-          : t('plugins.saveConfigSuccessNormal'),
-      );
+      toast.success(t('plugins.saveConfigSuccessNormal'));
       onFormSubmit(1000);
     } catch (error) {
       toast.error(t('plugins.saveConfigError') + (error as Error).message);
@@ -160,7 +155,18 @@ export default function PluginForm({
 
         <div className="mb-4 flex flex-row items-center justify-start gap-[0.4rem]">
           <PluginComponentList
-            components={pluginInfo.components}
+            components={(() => {
+              const componentKindCount: Record<string, number> = {};
+              for (const component of pluginInfo.components) {
+                const kind = component.manifest.manifest.kind;
+                if (componentKindCount[kind]) {
+                  componentKindCount[kind]++;
+                } else {
+                  componentKindCount[kind] = 1;
+                }
+              }
+              return componentKindCount;
+            })()}
             showComponentName={true}
             showTitle={false}
             useBadge={true}
@@ -173,7 +179,7 @@ export default function PluginForm({
             itemConfigList={pluginInfo.manifest.manifest.spec.config}
             initialValues={pluginConfig.config as Record<string, object>}
             onSubmit={(values) => {
-              // 只保存表单值的引用，不触发状态更新
+              // 只保存表单值的引用,不触发状态更新
               currentFormValues.current = values;
             }}
             onFileUploaded={(fileKey) => {

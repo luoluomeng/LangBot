@@ -63,6 +63,7 @@ export interface KnowledgeBase {
   description: string;
   embedding_model_uuid: string;
   created_at?: string;
+  updated_at?: string;
   top_k: number;
 }
 
@@ -142,6 +143,7 @@ export interface Bot {
   use_pipeline_uuid?: string;
   created_at?: string;
   updated_at?: string;
+  adapter_runtime_values?: object;
 }
 
 export interface ApiRespKnowledgeBases {
@@ -160,6 +162,25 @@ export interface KnowledgeBase {
   top_k: number;
   created_at?: string;
   updated_at?: string;
+}
+
+export interface ExternalKnowledgeBase {
+  uuid?: string;
+  name: string;
+  description: string;
+  created_at?: string;
+  plugin_author: string;
+  plugin_name: string;
+  retriever_name: string;
+  retriever_config?: Record<string, unknown>;
+}
+
+export interface ApiRespExternalKnowledgeBases {
+  bases: ExternalKnowledgeBase[];
+}
+
+export interface ApiRespExternalKnowledgeBase {
+  base: ExternalKnowledgeBase;
 }
 
 export interface ApiRespKnowledgeBaseFiles {
@@ -295,12 +316,22 @@ export interface ApiRespWebChatMessages {
   messages: Message[];
 }
 
+export interface RetrieveResultContent {
+  type: 'text' | 'image_url' | 'image_base64' | 'file_url';
+  text?: string;
+  file_name?: string;
+  file_url?: string;
+  image_url?: string;
+  image_base64?: string;
+}
+
 export interface RetrieveResult {
   id: string;
+  content?: RetrieveResultContent[];
   metadata: {
-    file_id: string;
-    text: string;
-    uuid: string;
+    file_id?: string;
+    text?: string;
+    uuid?: string;
     [key: string]: unknown;
   };
   distance: number;

@@ -5,7 +5,9 @@
 
 <div align="center">
 
-English / [简体中文](README.md) / [繁體中文](README_TW.md) / [日本語](README_JP.md) / (PR for your language)
+<a href="https://www.producthunt.com/products/langbot?utm_source=badge-follow&utm_medium=badge&utm_source=badge-langbot" target="_blank"><img src="https://api.producthunt.com/widgets/embed-image/v1/follow.svg?product_id=1077185&theme=light" alt="LangBot - Production&#0045;grade&#0032;IM&#0032;bot&#0032;made&#0032;easy&#0046; | Product Hunt" style="width: 250px; height: 54px;" width="250" height="54" /></a>
+
+English / [简体中文](README.md) / [繁體中文](README_TW.md) / [日本語](README_JP.md) / [Español](README_ES.md) / [Français](README_FR.md) / [한국어](README_KO.md) / [Русский](README_RU.md) / [Tiếng Việt](README_VI.md)
 
 [![Discord](https://img.shields.io/discord/1335141740050649118?logo=discord&labelColor=%20%235462eb&logoColor=%20%23f5f5f5&color=%20%235462eb)](https://discord.gg/wdNEHETs87)
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/langbot-app/LangBot)
@@ -77,10 +79,10 @@ Click the Star and Watch button in the upper right corner of the repository to g
 
 ## ✨ Features
 
-- 💬 Chat with LLM / Agent: Supports multiple LLMs, adapt to group chats and private chats; Supports multi-round conversations, tool calls, multi-modal, and streaming output capabilities. Built-in RAG (knowledge base) implementation, and deeply integrates with [Dify](https://dify.ai).
+- 💬 Chat with LLM / Agent: Supports multiple LLMs, adapt to group chats and private chats; Supports multi-round conversations, tool calls, multi-modal, and streaming output capabilities. Built-in RAG (knowledge base) implementation, and deeply integrates with [Dify](https://dify.ai), [Coze](https://coze.com), [n8n](https://n8n.io) etc. LLMOps platforms.
 - 🤖 Multi-platform Support: Currently supports QQ, QQ Channel, WeCom, personal WeChat, Lark, DingTalk, Discord, Telegram, etc.
 - 🛠️ High Stability, Feature-rich: Native access control, rate limiting, sensitive word filtering, etc. mechanisms; Easy to use, supports multiple deployment methods. Supports multiple pipeline configurations, different bots can be used for different scenarios.
-- 🧩 Plugin Extension, Active Community: Support event-driven, component extension, etc. plugin mechanisms; Integrate Anthropic [MCP protocol](https://modelcontextprotocol.io/); Currently has hundreds of plugins.
+- 🧩 Plugin Extension, Active Community: High stability, high security production-level plugin system; Support event-driven, component extension, etc. plugin mechanisms; Integrate Anthropic [MCP protocol](https://modelcontextprotocol.io/); Currently has hundreds of plugins.
 - 😻 Web UI: Support management LangBot instance through the browser. No need to manually write configuration files.
 
 For more detailed specifications, please refer to the [documentation](https://docs.langbot.app/en/insight/features.html).

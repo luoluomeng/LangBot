@@ -22,7 +22,6 @@ import {
   GetPipelineResponseData,
   GetPipelineMetadataResponseData,
   AsyncTask,
-  ApiRespWebChatMessage,
   ApiRespWebChatMessages,
   ApiRespKnowledgeBases,
   ApiRespKnowledgeBase,
@@ -36,6 +35,9 @@ import {
   ApiRespMCPServers,
   ApiRespMCPServer,
   MCPServer,
+  ExternalKnowledgeBase,
+  ApiRespExternalKnowledgeBases,
+  ApiRespExternalKnowledgeBase,
 } from '@/app/infra/entities/api';
 import { Plugin } from '@/app/infra/entities/plugin';
 import { GetBotLogsRequest } from '@/app/infra/http/requestParam/bots/GetBotLogsRequest';
@@ -171,6 +173,8 @@ export class BackendClient extends BaseHttpClient {
   }
 
   public getPipelineExtensions(uuid: string): Promise<{
+    enable_all_plugins: boolean;
+    enable_all_mcp_servers: boolean;
     bound_plugins: Array<{ author: string; name: string }>;
     available_plugins: Plugin[];
     bound_mcp_servers: string[];
@@ -183,143 +187,69 @@ export class BackendClient extends BaseHttpClient {
     uuid: string,
     bound_plugins: Array<{ author: string; name: string }>,
     bound_mcp_servers: string[],
+    enable_all_plugins: boolean = true,
+    enable_all_mcp_servers: boolean = true,
   ): Promise<object> {
     return this.put(`/api/v1/pipelines/${uuid}/extensions`, {
       bound_plugins,
       bound_mcp_servers,
+      enable_all_plugins,
+      enable_all_mcp_servers,
     });
   }
 
-  // ============ Debug WebChat API ============
-
-  // ============ Debug WebChat API ============
-  public sendWebChatMessage(
-    sessionType: string,
-    messageChain: object[],
-    pipelineId: string,
-    timeout: number = 15000,
-  ): Promise<ApiRespWebChatMessage> {
-    return this.post(
-      `/api/v1/pipelines/${pipelineId}/chat/send`,
-      {
-        session_type: sessionType,
-        message: messageChain,
-      },
-      {
-        timeout,
-      },
-    );
-  }
-
-  public async sendStreamingWebChatMessage(
-    sessionType: string,
-    messageChain: object[],
-    pipelineId: string,
-    onMessage: (data: ApiRespWebChatMessage) => void,
-    onComplete: () => void,
-    onError: (error: Error) => void,
-  ): Promise<void> {
-    try {
-      // 构造完整的URL，处理相对路径的情况
-      let url = `${this.baseURL}/api/v1/pipelines/${pipelineId}/chat/send`;
-      if (this.baseURL === '/') {
-        // 获取用户访问的完整URL
-        const baseURL = window.location.origin;
-        url = `${baseURL}/api/v1/pipelines/${pipelineId}/chat/send`;
-      }
-
-      // 使用fetch发送流式请求，因为axios在浏览器环境中不直接支持流式响应
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${this.getSessionSync()}`,
-        },
-        body: JSON.stringify({
-          session_type: sessionType,
-          message: messageChain,
-          is_stream: true,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      if (!response.body) {
-        throw new Error('ReadableStream not supported');
-      }
-
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = '';
-
-      // 读取流式响应
-      try {
-        while (true) {
-          const { done, value } = await reader.read();
-
-          if (done) {
-            onComplete();
-            break;
-          }
-
-          // 解码数据
-          buffer += decoder.decode(value, { stream: true });
-
-          // 处理完整的JSON对象
-          const lines = buffer.split('\n\n');
-          buffer = lines.pop() || '';
-
-          for (const line of lines) {
-            if (line.startsWith('data:')) {
-              try {
-                const data = JSON.parse(line.slice(5));
-
-                if (data.type === 'end') {
-                  // 流传输结束
-                  reader.cancel();
-                  onComplete();
-                  return;
-                }
-                if (data.type === 'start') {
-                  console.log(data.type);
-                }
-
-                if (data.message) {
-                  // 处理消息数据
-                  onMessage(data);
-                }
-              } catch (error) {
-                console.error('Error parsing streaming data:', error);
-              }
-            }
-          }
-        }
-      } finally {
-        reader.releaseLock();
-      }
-    } catch (error) {
-      onError(error as Error);
-    }
-  }
-
-  public getWebChatHistoryMessages(
+  // ============ WebSocket Chat API ============
+  public getWebSocketHistoryMessages(
     pipelineId: string,
     sessionType: string,
   ): Promise<ApiRespWebChatMessages> {
     return this.get(
-      `/api/v1/pipelines/${pipelineId}/chat/messages/${sessionType}`,
+      `/api/v1/pipelines/${pipelineId}/ws/messages/${sessionType}`,
     );
   }
 
-  public resetWebChatSession(
+  public async uploadWebSocketImage(
+    pipelineId: string,
+    imageFile: File,
+  ): Promise<{ file_key: string }> {
+    const formData = new FormData();
+    formData.append('file', imageFile);
+
+    return this.postFile(`/api/v1/files/images`, formData);
+  }
+
+  public resetWebSocketSession(
     pipelineId: string,
     sessionType: string,
   ): Promise<{ message: string }> {
-    return this.post(
-      `/api/v1/pipelines/${pipelineId}/chat/reset/${sessionType}`,
-    );
+    return this.post(`/api/v1/pipelines/${pipelineId}/ws/reset/${sessionType}`);
+  }
+
+  public getWebSocketConnections(pipelineId: string): Promise<{
+    stats: {
+      total_connections: number;
+      pipelines: number;
+      connections_by_pipeline: Record<string, number>;
+      connections_by_session_type: Record<string, number>;
+    };
+    connections: Array<{
+      connection_id: string;
+      session_type: string;
+      created_at: string;
+      last_active: string;
+      is_active: boolean;
+    }>;
+  }> {
+    return this.get(`/api/v1/pipelines/${pipelineId}/ws/connections`);
+  }
+
+  public broadcastWebSocketMessage(
+    pipelineId: string,
+    message: string,
+  ): Promise<{ message: string }> {
+    return this.post(`/api/v1/pipelines/${pipelineId}/ws/broadcast`, {
+      message,
+    });
   }
 
   // ============ Platform API ============
@@ -439,6 +369,47 @@ export class BackendClient extends BaseHttpClient {
     return this.post(`/api/v1/knowledge/bases/${uuid}/retrieve`, { query });
   }
 
+  // ============ External Knowledge Base API ============
+  public getExternalKnowledgeBases(): Promise<ApiRespExternalKnowledgeBases> {
+    return this.get('/api/v1/knowledge/external-bases');
+  }
+
+  public getExternalKnowledgeBase(
+    uuid: string,
+  ): Promise<ApiRespExternalKnowledgeBase> {
+    return this.get(`/api/v1/knowledge/external-bases/${uuid}`);
+  }
+
+  public createExternalKnowledgeBase(
+    base: ExternalKnowledgeBase,
+  ): Promise<{ uuid: string }> {
+    return this.post('/api/v1/knowledge/external-bases', base);
+  }
+
+  public updateExternalKnowledgeBase(
+    uuid: string,
+    base: ExternalKnowledgeBase,
+  ): Promise<{ uuid: string }> {
+    return this.put(`/api/v1/knowledge/external-bases/${uuid}`, base);
+  }
+
+  public deleteExternalKnowledgeBase(uuid: string): Promise<object> {
+    return this.delete(`/api/v1/knowledge/external-bases/${uuid}`);
+  }
+
+  public retrieveExternalKnowledgeBase(
+    uuid: string,
+    query: string,
+  ): Promise<ApiRespKnowledgeBaseRetrieve> {
+    return this.post(`/api/v1/knowledge/external-bases/${uuid}/retrieve`, {
+      query,
+    });
+  }
+
+  public listKnowledgeRetrievers(): Promise<{ retrievers: unknown[] }> {
+    return this.get('/api/v1/knowledge/external-bases/retrievers');
+  }
+
   // ============ Plugins API ============
   public getPlugins(): Promise<ApiRespPlugins> {
     return this.get('/api/v1/plugins');
@@ -481,6 +452,27 @@ export class BackendClient extends BaseHttpClient {
     fileKey: string,
   ): Promise<{ deleted: boolean }> {
     return this.delete(`/api/v1/plugins/config-files/${fileKey}`);
+  }
+
+  public getPluginReadme(
+    author: string,
+    name: string,
+    language: string = 'en',
+  ): Promise<{ readme: string }> {
+    return this.get(
+      `/api/v1/plugins/${author}/${name}/readme?language=${language}`,
+    );
+  }
+
+  public getPluginAssetURL(
+    author: string,
+    name: string,
+    filepath: string,
+  ): string {
+    return (
+      this.instance.defaults.baseURL +
+      `/api/v1/plugins/${author}/${name}/assets/${filepath}`
+    );
   }
 
   public getPluginIconURL(author: string, name: string): string {
@@ -645,6 +637,13 @@ export class BackendClient extends BaseHttpClient {
 
   public getPluginSystemStatus(): Promise<ApiRespPluginSystemStatus> {
     return this.get('/api/v1/system/status/plugin-system');
+  }
+
+  public getPluginDebugInfo(): Promise<{
+    debug_url: string;
+    plugin_debug_key: string;
+  }> {
+    return this.get('/api/v1/plugins/debug-info');
   }
 
   // ============ User API ============

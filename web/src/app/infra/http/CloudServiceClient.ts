@@ -34,6 +34,7 @@ export class CloudServiceClient extends BaseHttpClient {
     page_size: number,
     sort_by?: string,
     sort_order?: string,
+    component_filter?: string,
   ): Promise<ApiRespMarketplacePlugins> {
     return this.post<ApiRespMarketplacePlugins>(
       '/api/v1/marketplace/plugins/search',
@@ -43,6 +44,7 @@ export class CloudServiceClient extends BaseHttpClient {
         page_size,
         sort_by,
         sort_order,
+        component_filter,
       },
     );
   }
@@ -59,9 +61,11 @@ export class CloudServiceClient extends BaseHttpClient {
   public getPluginREADME(
     author: string,
     pluginName: string,
+    language?: string,
   ): Promise<{ readme: string }> {
     return this.get<{ readme: string }>(
       `/api/v1/marketplace/plugins/${author}/${pluginName}/resources/README`,
+      language ? { language } : undefined,
     );
   }
 
@@ -78,6 +82,6 @@ export class CloudServiceClient extends BaseHttpClient {
   }
 
   public getPluginMarketplaceURL(author: string, name: string): string {
-    return `${this.baseURL}/market?author=${author}&plugin=${name}`;
+    return `https://space.langbot.app/market/${author}/${name}`;
   }
 }

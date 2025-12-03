@@ -7,7 +7,10 @@ import typing
 import os
 import sys
 import httpx
+import traceback
+import sqlalchemy
 from async_lru import alru_cache
+from langbot_plugin.api.entities.builtin.pipeline.query import provider_session
 
 from ..core import app
 from . import handler
@@ -26,6 +29,7 @@ from langbot_plugin.api.entities.builtin.command import (
 )
 from langbot_plugin.runtime.plugin.mgr import PluginInstallSource
 from ..core import taskmgr
+from ..entity.persistence import plugin as persistence_plugin
 
 
 class PluginRuntimeConnector:
@@ -98,6 +102,12 @@ class PluginRuntimeConnector:
             self.handler_task = asyncio.create_task(self.handler.run())
             _ = await self.handler.ping()
             self.ap.logger.info('Connected to plugin runtime.')
+            # Sync polymorphic component instances after connection
+            try:
+                await self.sync_polymorphic_component_instances()
+            except Exception as e:
+                traceback.print_exc()
+                self.ap.logger.error(f'Failed to sync polymorphic component instances: {e}')
             await self.handler_task
 
         task: asyncio.Task | None = None
@@ -274,11 +284,88 @@ class PluginRuntimeConnector:
                 task_context.trace('Cleaning up plugin configuration and storage...')
             await self.handler.cleanup_plugin_data(plugin_author, plugin_name)
 
-    async def list_plugins(self) -> list[dict[str, Any]]:
+    async def list_plugins(self, component_kinds: list[str] | None = None) -> list[dict[str, Any]]:
+        """List plugins, optionally filtered by component kinds.
+
+        Args:
+            component_kinds: Optional list of component kinds to filter by.
+                           If provided, only plugins that contain at least one
+                           component of the specified kinds will be returned.
+                           E.g., ['Command', 'EventListener', 'Tool'] for pipeline-related plugins.
+        """
         if not self.is_enable_plugin:
             return []
 
-        return await self.handler.list_plugins()
+        plugins = await self.handler.list_plugins()
+
+        # Filter plugins by component kinds if specified
+        if component_kinds is not None:
+            filtered_plugins = []
+            for plugin in plugins:
+                components = plugin.get('components', [])
+                has_matching_component = False
+                for component in components:
+                    component_kind = component.get('manifest', {}).get('manifest', {}).get('kind', '')
+                    if component_kind in component_kinds:
+                        has_matching_component = True
+                        break
+                if has_matching_component:
+                    filtered_plugins.append(plugin)
+            plugins = filtered_plugins
+
+        # Sort plugins: debug plugins first, then by installation time (newest first)
+        # Get installation timestamps from database in a single query
+        plugin_timestamps = {}
+
+        if plugins:
+            # Build list of (author, name) tuples for all plugins
+            plugin_ids = []
+            for plugin in plugins:
+                author = plugin.get('manifest', {}).get('manifest', {}).get('metadata', {}).get('author', '')
+                name = plugin.get('manifest', {}).get('manifest', {}).get('metadata', {}).get('name', '')
+                if author and name:
+                    plugin_ids.append((author, name))
+
+            # Fetch all timestamps in a single query using OR conditions
+            if plugin_ids:
+                conditions = [
+                    sqlalchemy.and_(
+                        persistence_plugin.PluginSetting.plugin_author == author,
+                        persistence_plugin.PluginSetting.plugin_name == name,
+                    )
+                    for author, name in plugin_ids
+                ]
+
+                result = await self.ap.persistence_mgr.execute_async(
+                    sqlalchemy.select(
+                        persistence_plugin.PluginSetting.plugin_author,
+                        persistence_plugin.PluginSetting.plugin_name,
+                        persistence_plugin.PluginSetting.created_at,
+                    ).where(sqlalchemy.or_(*conditions))
+                )
+
+                for row in result:
+                    plugin_id = f'{row.plugin_author}/{row.plugin_name}'
+                    plugin_timestamps[plugin_id] = row.created_at
+
+        # Sort: debug plugins first (descending), then by created_at (descending)
+        def sort_key(plugin):
+            author = plugin.get('manifest', {}).get('manifest', {}).get('metadata', {}).get('author', '')
+            name = plugin.get('manifest', {}).get('manifest', {}).get('metadata', {}).get('name', '')
+            plugin_id = f'{author}/{name}'
+
+            is_debug = plugin.get('debug', False)
+            created_at = plugin_timestamps.get(plugin_id)
+
+            # Return tuple: (not is_debug, -timestamp)
+            # not is_debug: False (0) for debug plugins, True (1) for non-debug
+            # -timestamp: to sort newest first (will be None for plugins without timestamp)
+            timestamp_value = -created_at.timestamp() if created_at else 0
+            return (not is_debug, timestamp_value)
+
+        plugins.sort(key=sort_key)
+
+        return plugins
 
     async def get_plugin_info(self, author: str, plugin_name: str) -> dict[str, Any]:
         return await self.handler.get_plugin_info(author, plugin_name)
@@ -289,6 +376,20 @@ class PluginRuntimeConnector:
     @alru_cache(ttl=5 * 60)  # 5 minutes
     async def get_plugin_icon(self, plugin_author: str, plugin_name: str) -> dict[str, Any]:
         return await self.handler.get_plugin_icon(plugin_author, plugin_name)
+
+    @alru_cache(ttl=5 * 60)  # 5 minutes
+    async def get_plugin_readme(self, plugin_author: str, plugin_name: str, language: str = 'en') -> str:
+        return await self.handler.get_plugin_readme(plugin_author, plugin_name, language)
+
+    @alru_cache(ttl=5 * 60)
+    async def get_plugin_assets(self, plugin_author: str, plugin_name: str, filepath: str) -> dict[str, Any]:
+        return await self.handler.get_plugin_assets(plugin_author, plugin_name, filepath)
+
+    async def get_debug_info(self) -> dict[str, Any]:
+        """Get debug information including debug key and WS URL"""
+        if not self.is_enable_plugin:
+            return {}
+        return await self.handler.get_debug_info()
 
     async def emit_event(
         self,
@@ -321,13 +422,20 @@ class PluginRuntimeConnector:
         return tools
 
     async def call_tool(
-        self, tool_name: str, parameters: dict[str, Any], bound_plugins: list[str] | None = None
+        self,
+        tool_name: str,
+        parameters: dict[str, Any],
+        session: provider_session.Session,
+        query_id: int,
+        bound_plugins: list[str] | None = None,
     ) -> dict[str, Any]:
         if not self.is_enable_plugin:
             return {'error': 'Tool not found: plugin system is disabled'}
 
         # Pass include_plugins to runtime for validation
-        return await self.handler.call_tool(tool_name, parameters, include_plugins=bound_plugins)
+        return await self.handler.call_tool(
+            tool_name, parameters, session.model_dump(serialize_as_any=True), query_id, include_plugins=bound_plugins
+        )
 
     async def list_commands(self, bound_plugins: list[str] | None = None) -> list[ComponentManifest]:
         if not self.is_enable_plugin:
@@ -355,6 +463,31 @@ class PluginRuntimeConnector:
 
             yield cmd_ret
 
+    # KnowledgeRetriever methods
+    async def list_knowledge_retrievers(self, bound_plugins: list[str] | None = None) -> list[dict[str, Any]]:
+        """List all available KnowledgeRetriever components."""
+        if not self.is_enable_plugin:
+            return []
+
+        retrievers_data = await self.handler.list_knowledge_retrievers(include_plugins=bound_plugins)
+        return retrievers_data
+
+    async def retrieve_knowledge(
+        self,
+        plugin_author: str,
+        plugin_name: str,
+        retriever_name: str,
+        instance_id: str,
+        retrieval_context: dict[str, Any],
+    ) -> list[dict[str, Any]]:
+        """Retrieve knowledge using a KnowledgeRetriever instance."""
+        if not self.is_enable_plugin:
+            return []
+
+        return await self.handler.retrieve_knowledge(
+            plugin_author, plugin_name, retriever_name, instance_id, retrieval_context
+        )
+
     def dispose(self):
         # No need to consider the shutdown on Windows
         # for Windows can kill processes and subprocesses chainly
@@ -366,3 +499,42 @@ class PluginRuntimeConnector:
         if self.heartbeat_task is not None:
             self.heartbeat_task.cancel()
             self.heartbeat_task = None
+
+    async def sync_polymorphic_component_instances(self) -> dict[str, Any]:
+        """Sync polymorphic component instances with runtime.
+
+        This collects all external knowledge bases from database and sends to runtime
+        to ensure instance integrity across restarts.
+        """
+        if not self.is_enable_plugin:
+            return {}
+
+        # ===== external knowledge bases =====
+
+        external_kbs = await self.ap.external_kb_service.get_external_knowledge_bases()
+
+        # Build required_instances list
+        required_instances = []
+        for kb in external_kbs:
+            required_instances.append(
+                {
+                    'instance_id': kb['uuid'],
+                    'plugin_author': kb['plugin_author'],
+                    'plugin_name': kb['plugin_name'],
+                    'component_kind': 'KnowledgeRetriever',
+                    'component_name': kb['retriever_name'],
+                    'config': kb['retriever_config'],
+                }
+            )
+
+        self.ap.logger.info(f'Syncing {len(required_instances)} polymorphic component instances to runtime')
+
+        # Send to runtime
+        sync_result = await self.handler.sync_polymorphic_component_instances(required_instances)
+
+        self.ap.logger.info(
+            f'Sync complete: {len(sync_result.get("success_instances", []))} succeeded, '
+            f'{len(sync_result.get("failed_instances", []))} failed'
+        )
+
+        return sync_result

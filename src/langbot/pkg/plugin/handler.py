@@ -602,6 +602,51 @@ class RuntimeConnectionHandler(handler.Handler):
             'mime_type': mime_type,
         }
 
+    async def get_plugin_readme(self, plugin_author: str, plugin_name: str, language: str = 'en') -> str:
+        """Get plugin readme"""
+        try:
+            result = await self.call_action(
+                LangBotToRuntimeAction.GET_PLUGIN_README,
+                {
+                    'plugin_author': plugin_author,
+                    'plugin_name': plugin_name,
+                    'language': language,
+                },
+                timeout=20,
+            )
+        except Exception:
+            traceback.print_exc()
+            return ''
+
+        readme_file_key = result.get('readme_file_key')
+        if not readme_file_key:
+            return ''
+
+        readme_bytes = await self.read_local_file(readme_file_key)
+        await self.delete_local_file(readme_file_key)
+
+        return readme_bytes.decode('utf-8')
+
+    async def get_plugin_assets(self, plugin_author: str, plugin_name: str, filepath: str) -> dict[str, Any]:
+        """Get plugin assets"""
+        result = await self.call_action(
+            LangBotToRuntimeAction.GET_PLUGIN_ASSETS_FILE,
+            {
+                'plugin_author': plugin_author,
+                'plugin_name': plugin_name,
+                'file_path': filepath,
+            },
+            timeout=20,
+        )
+        asset_file_key = result['file_file_key']
+        mime_type = result['mime_type']
+        asset_bytes = await self.read_local_file(asset_file_key)
+        await self.delete_local_file(asset_file_key)
+        return {
+            'asset_base64': base64.b64encode(asset_bytes).decode('utf-8'),
+            'mime_type': mime_type,
+        }
+
     async def cleanup_plugin_data(self, plugin_author: str, plugin_name: str) -> None:
         """Cleanup plugin settings and binary storage"""
         # Delete plugin settings
@@ -620,7 +665,12 @@ class RuntimeConnectionHandler(handler.Handler):
         )
 
     async def call_tool(
-        self, tool_name: str, parameters: dict[str, Any], include_plugins: list[str] | None = None
+        self,
+        tool_name: str,
+        parameters: dict[str, Any],
+        session: dict[str, Any],
+        query_id: int,
+        include_plugins: list[str] | None = None,
     ) -> dict[str, Any]:
         """Call tool"""
         result = await self.call_action(
@@ -628,9 +678,11 @@ class RuntimeConnectionHandler(handler.Handler):
             {
                 'tool_name': tool_name,
                 'tool_parameters': parameters,
+                'session': session,
+                'query_id': query_id,
                 'include_plugins': include_plugins,
             },
-            timeout=60,
+            timeout=180,
         )
 
         return result['tool_response']
@@ -656,8 +708,62 @@ class RuntimeConnectionHandler(handler.Handler):
                 'command_context': command_context,
                 'include_plugins': include_plugins,
             },
-            timeout=60,
+            timeout=180,
         )
 
         async for ret in gen:
             yield ret
+
+    # KnowledgeRetriever methods
+    async def list_knowledge_retrievers(self, include_plugins: list[str] | None = None) -> list[dict[str, Any]]:
+        """List knowledge retrievers"""
+        result = await self.call_action(
+            LangBotToRuntimeAction.LIST_KNOWLEDGE_RETRIEVERS,
+            {
+                'include_plugins': include_plugins,
+            },
+            timeout=10,
+        )
+        return result['retrievers']
+
+    async def retrieve_knowledge(
+        self,
+        plugin_author: str,
+        plugin_name: str,
+        retriever_name: str,
+        instance_id: str,
+        retrieval_context: dict[str, Any],
+    ) -> list[dict[str, Any]]:
+        """Retrieve knowledge"""
+        result = await self.call_action(
+            LangBotToRuntimeAction.RETRIEVE_KNOWLEDGE,
+            {
+                'plugin_author': plugin_author,
+                'plugin_name': plugin_name,
+                'retriever_name': retriever_name,
+                'instance_id': instance_id,
+                'retrieval_context': retrieval_context,
+            },
+            timeout=30,
+        )
+        return result['retrieval_results']
+
+    async def sync_polymorphic_component_instances(self, required_instances: list[dict[str, Any]]) -> dict[str, Any]:
+        """Sync polymorphic component instances with runtime"""
+        result = await self.call_action(
+            LangBotToRuntimeAction.SYNC_POLYMORPHIC_COMPONENT_INSTANCES,
+            {
+                'required_instances': required_instances,
+            },
+            timeout=30,
+        )
+        return result
+
+    async def get_debug_info(self) -> dict[str, Any]:
+        """Get debug information including debug key and WS URL"""
+        result = await self.call_action(
+            LangBotToRuntimeAction.GET_DEBUG_INFO,
+            {},
+            timeout=10,
+        )
+        return result
