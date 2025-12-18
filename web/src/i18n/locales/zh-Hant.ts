@@ -187,6 +187,10 @@ const zhHant = {
     webhookUrlCopied: 'Webhook 位址已複製',
     webhookUrlHint:
       '點擊輸入框自動全選，然後按 Ctrl+C (Mac: Cmd+C) 複製，或點擊右側按鈕',
+    logLevel: '日誌級別',
+    allLevels: '全部級別',
+    selectLevel: '選擇級別',
+    levelsSelected: '個級別已選',
   },
   plugins: {
     title: '外掛擴展',
@@ -270,6 +274,7 @@ const zhHant = {
     noComponents: '無組件',
     delete: '刪除插件',
     update: '更新插件',
+    new: '新',
     updateConfirm: '更新確認',
     confirmUpdatePlugin: '您確定要更新插件（{{author}}/{{name}}）嗎？',
     confirmUpdate: '確認更新',
@@ -511,6 +516,7 @@ const zhHant = {
       loadPipelinesFailed: '載入流程線失敗',
       atTips: '提及機器人',
       streaming: '串流傳輸',
+      streamOutput: '串流',
       connected: 'WebSocket已連接',
       disconnected: 'WebSocket未連接',
       connectionError: 'WebSocket連接錯誤',

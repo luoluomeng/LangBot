@@ -192,6 +192,10 @@ const enUS = {
     webhookUrlCopied: 'Webhook URL copied',
     webhookUrlHint:
       'Click the input to select all, then press Ctrl+C (Mac: Cmd+C) to copy, or click the button',
+    logLevel: 'Log Level',
+    allLevels: 'All Levels',
+    selectLevel: 'Select Level',
+    levelsSelected: 'levels selected',
   },
   plugins: {
     title: 'Extensions',
@@ -284,6 +288,7 @@ const enUS = {
     noComponents: 'No components',
     delete: 'Delete Plugin',
     update: 'Update Plugin',
+    new: 'New',
     updateConfirm: 'Update Confirmation',
     confirmUpdatePlugin:
       'Are you sure you want to update the plugin ({{author}}/{{name}})?',
@@ -531,6 +536,7 @@ const enUS = {
       loadPipelinesFailed: 'Failed to load pipelines',
       atTips: 'Mention the bot',
       streaming: 'Streaming',
+      streamOutput: 'Stream',
       connected: 'WebSocket connected',
       disconnected: 'WebSocket disconnected',
       connectionError: 'WebSocket connection error',

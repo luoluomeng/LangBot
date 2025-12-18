@@ -187,6 +187,10 @@ const zhHans = {
     webhookUrlCopied: 'Webhook 地址已复制',
     webhookUrlHint:
       '点击输入框自动全选，然后按 Ctrl+C (Mac: Cmd+C) 复制，或点击右侧按钮',
+    logLevel: '日志级别',
+    allLevels: '全部级别',
+    selectLevel: '选择级别',
+    levelsSelected: '个级别已选',
   },
   plugins: {
     title: '插件扩展',
@@ -271,6 +275,7 @@ const zhHans = {
     noComponents: '无组件',
     delete: '删除插件',
     update: '更新插件',
+    new: '新',
     updateConfirm: '更新确认',
     confirmUpdatePlugin: '你确定要更新插件（{{author}}/{{name}}）吗？',
     confirmUpdate: '确认更新',
@@ -513,6 +518,7 @@ const zhHans = {
       loadPipelinesFailed: '加载流水线失败',
       atTips: '提及机器人',
       streaming: '流式传输',
+      streamOutput: '流式',
       connected: 'WebSocket已连接',
       disconnected: 'WebSocket未连接',
       connectionError: 'WebSocket连接错误',

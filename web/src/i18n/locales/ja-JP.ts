@@ -194,6 +194,10 @@ const jaJP = {
     webhookUrlCopied: 'Webhook URL をコピーしました',
     webhookUrlHint:
       '入力ボックスをクリックして全選択し、Ctrl+C (Mac: Cmd+C) でコピーするか、右側のボタンをクリックしてください',
+    logLevel: 'ログレベル',
+    allLevels: 'すべてのレベル',
+    selectLevel: 'レベルを選択',
+    levelsSelected: 'レベル選択済み',
   },
   plugins: {
     title: '拡張機能',
@@ -285,6 +289,7 @@ const jaJP = {
     noComponents: '部品がありません',
     delete: 'プラグインを削除',
     update: 'プラグインを更新',
+    new: '新着',
     updateConfirm: '更新の確認',
     confirmUpdatePlugin:
       'プラグイン「{{author}}/{{name}}」を更新してもよろしいですか？',
@@ -534,6 +539,7 @@ const jaJP = {
       loadPipelinesFailed: 'パイプラインの読み込みに失敗しました',
       atTips: 'ボットをメンション',
       streaming: 'ストリーミング',
+      streamOutput: 'ストリーム',
       connected: 'WebSocket接続済み',
       disconnected: 'WebSocket未接続',
       connectionError: 'WebSocket接続エラー',
